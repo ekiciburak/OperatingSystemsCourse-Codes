@@ -61,8 +61,11 @@ int main(int argc, char const *argv[])
     enQueue(n5, q);
     
     initBoard(b, q);
+    /*
+    printf("the initial priority queue:\n");
     printQueue((*(b)).pq);
-
+    sleep(3);
+    */
     pthread_t t1, t2, t3, t4, t5, d;
 
     pthread_create(&d,  NULL, (void *) dispatcher,  b);
@@ -111,17 +114,17 @@ void proc1 (BOARD *b)
         {
             printf(" ***** process 1 is running for %d seconds *****\n", (*(b)).qtime);
             updateBurstTime((*(b)).cp->proc, (*(b)).qtime);
+            printQueue((*(b)).pq);
             enQueue((*(b)).cp, (*(b)).pq);
             sleep((*(b)).qtime);
-            printQueue((*(b)).pq);
             sem_post(&(*(b)).sd);
         }
         else
         {
             printf(" ***** process 1 is running for %d seconds *****\n", (*(b)).cp->proc->burstTime);
+            printQueue((*(b)).pq);
             sleep((*(b)).cp->proc->burstTime);
             updateBurstTime((*(b)).cp->proc, (*(b)).cp->proc->burstTime);
-            printQueue((*(b)).pq);
             sem_post(&(*(b)).sd);
         }
     }
@@ -139,19 +142,18 @@ void proc2 (BOARD *b)
         {
             printf(" ***** process 2 is running for %d seconds *****\n", (*(b)).qtime);
             updateBurstTime((*(b)).cp->proc, (*(b)).qtime);
+            printQueue((*(b)).pq);
             enQueue((*(b)).cp, (*(b)).pq);
             sleep((*(b)).qtime);
-            printQueue((*(b)).pq);
             sem_post(&(*(b)).sd);
         }
-        else 
+        else
         {
             printf(" ***** process 2 is running for %d seconds *****\n", (*(b)).cp->proc->burstTime);
+            printQueue((*(b)).pq);
             sleep((*(b)).cp->proc->burstTime);
             updateBurstTime((*(b)).cp->proc, (*(b)).cp->proc->burstTime);
-            printQueue((*(b)).pq);
             sem_post(&(*(b)).sd);
-        
         }
     }
 }
@@ -168,18 +170,17 @@ void proc3 (BOARD *b)
         {
             printf(" ***** process 3 is running for %d seconds *****\n", (*(b)).qtime);
             updateBurstTime((*(b)).cp->proc, (*(b)).qtime);
+            printQueue((*(b)).pq);
             enQueue((*(b)).cp, (*(b)).pq);
             sleep((*(b)).qtime);
-            printQueue((*(b)).pq);
             sem_post(&(*(b)).sd);
-
         }
-        else 
+        else
         {
             printf(" ***** process 3 is running for %d seconds *****\n", (*(b)).cp->proc->burstTime);
+            printQueue((*(b)).pq);
             sleep((*(b)).cp->proc->burstTime);
             updateBurstTime((*(b)).cp->proc, (*(b)).cp->proc->burstTime);
-            printQueue((*(b)).pq);
             sem_post(&(*(b)).sd);
         }
     }
@@ -197,17 +198,17 @@ void proc4 (BOARD *b)
         {
             printf(" ***** process 4 is running for %d seconds *****\n", (*(b)).qtime);
             updateBurstTime((*(b)).cp->proc, (*(b)).qtime);
+            printQueue((*(b)).pq);
             enQueue((*(b)).cp, (*(b)).pq);
             sleep((*(b)).qtime);
-            printQueue((*(b)).pq);
             sem_post(&(*(b)).sd);
         }
         else
         {
             printf(" ***** process 4 is running for %d seconds *****\n", (*(b)).cp->proc->burstTime);
+            printQueue((*(b)).pq);
             sleep((*(b)).cp->proc->burstTime);
             updateBurstTime((*(b)).cp->proc, (*(b)).cp->proc->burstTime);
-            printQueue((*(b)).pq);
             sem_post(&(*(b)).sd);
         }
     }
@@ -225,17 +226,17 @@ void proc5 (BOARD *b)
         {
             printf(" ***** process 5 is running for %d seconds *****\n", (*(b)).qtime);
             updateBurstTime((*(b)).cp->proc, (*(b)).qtime);
+            printQueue((*(b)).pq);
             enQueue((*(b)).cp, (*(b)).pq);
             sleep((*(b)).qtime);
-            printQueue((*(b)).pq);
             sem_post(&(*(b)).sd);
         }
         else
         {
             printf(" ***** process 5 is running for %d seconds *****\n", (*(b)).cp->proc->burstTime);
+            printQueue((*(b)).pq);
             sleep((*(b)).cp->proc->burstTime);
             updateBurstTime((*(b)).cp->proc, (*(b)).cp->proc->burstTime);
-            printQueue((*(b)).pq);
             sem_post(&(*(b)).sd);
         }
     }
@@ -247,7 +248,9 @@ void dispatcher (BOARD *b)
     while ((*(b)).sched)
     {
         sem_wait(&(*(b)).sd);
-
+        printf("\ndispatcher schedules processes in the priority queue below:\n");
+        printQueue((*(b)).pq);
+        sleep(3);
         (*(b)).cp = deQueue((*(b)).pq);        
 
         if((*(b)).cp == NULL) 
