@@ -116,16 +116,17 @@ NODE * deQueue(QUEUE *q)
 
 void printQueue(QUEUE *q)
 {
-    QUEUE *r = malloc(size*size*sizeof(NODE));
-    memcpy(r, q, size*size*sizeof(NODE));
+    NODE *n = malloc(sizeof(NODE));
+
+    n = (*(q)).front;
     printf("--------QUEUE---------\n");
-    while ((*r).front != NULL)
+    while (n != NULL)
     {
-        printf("pname: %s  ", (*(r)).front->proc->id);
-        printf("prior: %d  ", (*(r)).front->proc->priority);
-        printf("btime: %d  ", (*(r)).front->proc->burstTime);
+        printf("pname: %s  ", n->proc->id);
+        printf("prior: %d  ", n->proc->priority);
+        printf("btime: %d  ", n->proc->burstTime);
         printf("\n");
-        (*(r)).front = (*(r)).front->next;
+        n = n->next;
     }
     printf("----------------------\n");
 }
