@@ -1,0 +1,1 @@
+usage: "./rps n" where n is a positive integer denoting the maximum number of hands to play. For instance, "./rps 7" simulates the game with "best of 7" option.
