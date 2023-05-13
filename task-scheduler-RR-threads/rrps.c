@@ -9,9 +9,9 @@
 
 struct process
 {
-    char *id;
-    int priority;
-    int burstTime;
+   char *id;
+   int priority;
+   int burstTime;
 };
 
 typedef struct process PROCESS;
@@ -31,18 +31,17 @@ struct queue
 
 typedef struct queue QUEUE;
 
-void createProcess(PROCESS *, char *, int, int);
+void initProcess(PROCESS *, char *, int, int);
 void updateBurstTime(PROCESS *, int);
 void printProcess(PROCESS *);
 
-void createNode(NODE *, PROCESS *);
+void initNode(NODE *, PROCESS *);
 void printNode(NODE *);
 
-void createQueue(QUEUE *);
+void initQueue(QUEUE *);
 void enQueue(QUEUE *, NODE *);
 NODE * deQueue(QUEUE *);
 void printQueue(QUEUE *);
-
 
 struct board
 {
@@ -51,18 +50,18 @@ struct board
     sem_t s1, s2, s3, s4, s5, sd;
     bool sched;
     int qtime;
+    int interval;
 };
 
 typedef struct board BOARD;
 
 void initBoard(BOARD *, QUEUE *);
+void dispatcher(BOARD *);
 void process1(BOARD *);
 void process2(BOARD *);
 void process3(BOARD *);
 void process4(BOARD *);
 void process5(BOARD *);
-void dispatcher(BOARD *);
-
 
 
 int main(int argc, char const *argv[])
@@ -73,26 +72,26 @@ int main(int argc, char const *argv[])
     PROCESS *p4 = malloc(sizeof(PROCESS));
     PROCESS *p5 = malloc(sizeof(PROCESS));
 
-    createProcess(p1, "p1", 3, 4);
-    createProcess(p2, "p2", 2, 5);
-    createProcess(p3, "p3", 2, 8);
-    createProcess(p4, "p4", 1, 7);
-    createProcess(p5, "p5", 3, 3);
+    initProcess(p1, "p1", 3, 4);
+    initProcess(p2, "p2", 2, 5);
+    initProcess(p3, "p3", 2, 8);
+    initProcess(p4, "p4", 1, 7);
+    initProcess(p5, "p5", 3, 3);
 
     NODE *n1 = malloc(sizeof(NODE));
     NODE *n2 = malloc(sizeof(NODE));
     NODE *n3 = malloc(sizeof(NODE));
     NODE *n4 = malloc(sizeof(NODE));
     NODE *n5 = malloc(sizeof(NODE));
+    NODE *n6 = malloc(sizeof(NODE));
 
-    createNode(n1, p1);
-    createNode(n2, p2);
-    createNode(n3, p3);
-    createNode(n4, p4);
-    createNode(n5, p5);
+    initNode(n1, p1);
+    initNode(n2, p2);
+    initNode(n3, p3);
+    initNode(n4, p4);
+    initNode(n5, p5);
 
     QUEUE *q = malloc(sizeof(QUEUE));
-    createQueue(q);
 
     enQueue(q, n1);
     enQueue(q, n2);
@@ -100,32 +99,40 @@ int main(int argc, char const *argv[])
     enQueue(q, n4);
     enQueue(q, n5);
 
-    //printQueue(q);
+    printQueue(q);
+
+    n6 = deQueue(q);
+    printNode(n6);
+    printQueue(q);
+
+    enQueue(q, n6);
+    printQueue(q);
 
     BOARD *b = malloc(sizeof(BOARD));
     initBoard(b, q);
 
-    pthread_t t1, t2, t3, t4, t5, d;
+    pthread_t t1, t2, t3, t4, t5, td;
 
     pthread_create(&t1, NULL, (void *) process1, b);
     pthread_create(&t2, NULL, (void *) process2, b);
     pthread_create(&t3, NULL, (void *) process3, b);
     pthread_create(&t4, NULL, (void *) process4, b);
     pthread_create(&t5, NULL, (void *) process5, b);
-    pthread_create(&d,  NULL, (void *) dispatcher, b);
+    pthread_create(&td, NULL, (void *) dispatcher, b);
 
     pthread_join(t1, NULL);
     pthread_join(t2, NULL);
     pthread_join(t3, NULL);
     pthread_join(t4, NULL);
     pthread_join(t5, NULL);
+    pthread_join(td, NULL);
 
-    printf("terminating...\n");
+    printf("terminating... \n");
 
     return 0;
 }
 
-void createProcess(PROCESS *p, char *id, int priority, int burstTime)
+void initProcess(PROCESS *p, char *id, int priority, int burstTime)
 {
     p->id = id;
     p->priority = priority;
@@ -144,7 +151,7 @@ void printProcess(PROCESS *p)
     printf("burst time = %d\n", p->burstTime);
 }
 
-void createNode(NODE *n, PROCESS *p)
+void initNode(NODE *n, PROCESS *p)
 {
     n->proc = p;
     n->next = NULL;
@@ -155,7 +162,7 @@ void printNode(NODE *n)
     printProcess(n->proc);
 }
 
-void createQueue(QUEUE *q)
+void initQueue(QUEUE *q)
 {
     q->front = NULL;
 }
@@ -163,10 +170,7 @@ void createQueue(QUEUE *q)
 void enQueue(QUEUE *q, NODE *n)
 {
     if(q->front == NULL)
-    {
         q->front = n;
-        q->front->next = NULL;
-    }
     else if(q->front->proc->priority > n->proc->priority)
     {
         n->next = q->front;
@@ -176,10 +180,10 @@ void enQueue(QUEUE *q, NODE *n)
     {
         NODE *t = malloc(sizeof(NODE));
         t = q->front;
-        
+
         while ((t->next != NULL) && (t->next->proc->priority <= n->proc->priority))
             t = t->next;
-        
+
         n->next = t->next;
         t->next = n;
     }
@@ -202,15 +206,14 @@ void printQueue(QUEUE *q)
 {
     NODE *n = malloc(sizeof(NODE));
     n = q->front;
-
     printf("----- QUEUE -----\n");
     while (n != NULL)
     {
         printProcess(n->proc);
         n = n->next;
     }
+    
     printf("-----------------\n");
-
 }
 
 void initBoard(BOARD *b, QUEUE *q)
@@ -225,6 +228,7 @@ void initBoard(BOARD *b, QUEUE *q)
     sem_init(&b->sd, 1, 1);
     b->sched = true;
     b->qtime = quantum;
+    b->interval = 0;
 }
 
 void dispatcher(BOARD *b)
@@ -233,7 +237,7 @@ void dispatcher(BOARD *b)
     {
         sem_wait(&b->sd);
 
-        printf("\n the priority queue: \n");
+        printf("\nthe priority queue:\n");
         printQueue(b->pq);
         sleep(3);
         printf("\n");
@@ -272,25 +276,30 @@ void process1(BOARD *b)
         if(b->sched == false)
             pthread_exit(NULL);
         
-        if((b->pq->front == NULL) || (b->cn->proc->priority < b->pq->front->proc->priority) || (b->cn->proc->burstTime <= b->qtime))
+        if((b->pq->front ==NULL) ||
+           (b->cn->proc->priority < b->pq->front->proc->priority) ||
+           (b->cn->proc->burstTime <= b->qtime)
+          )
         {
-            printf("***** process 1 is running for %d seconds *****\n", b->cn->proc->burstTime);
+            printf("***** process 1 is running for %d seconds [%d, %d] *****\n", b->cn->proc->burstTime, b->interval, b->interval+b->cn->proc->burstTime);
             printQueue(b->pq);
             sleep(b->cn->proc->burstTime);
+            b->interval = b->interval+b->cn->proc->burstTime;
             updateBurstTime(b->cn->proc, b->cn->proc->burstTime);
             sem_post(&b->sd);
         }
         else
         {
-            printf("***** process 1 is running for %d seconds *****\n", b->qtime);
+            printf("***** process 1 is running for %d seconds [%d, %d] *****\n", b->qtime, b->interval, b->interval+b->qtime);
             printQueue(b->pq);
             sleep(b->qtime);
+            b->interval = b->interval+b->qtime;
             updateBurstTime(b->cn->proc, b->qtime);
             enQueue(b->pq, b->cn);
-            sem_post(&b->sd);            
+            sem_post(&b->sd);
         }
+
     }
-    
 }
 
 void process2(BOARD *b)
@@ -302,25 +311,30 @@ void process2(BOARD *b)
         if(b->sched == false)
             pthread_exit(NULL);
         
-        if((b->pq->front == NULL) || (b->cn->proc->priority < b->pq->front->proc->priority) || (b->cn->proc->burstTime <= b->qtime))
+        if((b->pq->front ==NULL) ||
+           (b->cn->proc->priority < b->pq->front->proc->priority) ||
+           (b->cn->proc->burstTime <= b->qtime)
+          )
         {
-            printf("***** process 2 is running for %d seconds *****\n", b->cn->proc->burstTime);
+            printf("***** process 2 is running for %d seconds [%d, %d] *****\n", b->cn->proc->burstTime, b->interval, b->interval+b->cn->proc->burstTime);
             printQueue(b->pq);
             sleep(b->cn->proc->burstTime);
+            b->interval = b->interval+b->cn->proc->burstTime;
             updateBurstTime(b->cn->proc, b->cn->proc->burstTime);
             sem_post(&b->sd);
         }
         else
         {
-            printf("***** process 2 is running for %d seconds *****\n", b->qtime);
+            printf("***** process 2 is running for %d seconds [%d, %d] *****\n", b->qtime, b->interval, b->interval+b->qtime);
             printQueue(b->pq);
             sleep(b->qtime);
+            b->interval = b->interval+b->qtime;
             updateBurstTime(b->cn->proc, b->qtime);
             enQueue(b->pq, b->cn);
-            sem_post(&b->sd);            
+            sem_post(&b->sd);
         }
+
     }
-    
 }
 
 void process3(BOARD *b)
@@ -332,25 +346,30 @@ void process3(BOARD *b)
         if(b->sched == false)
             pthread_exit(NULL);
         
-        if((b->pq->front == NULL) || (b->cn->proc->priority < b->pq->front->proc->priority) || (b->cn->proc->burstTime <= b->qtime))
+        if((b->pq->front ==NULL) ||
+           (b->cn->proc->priority < b->pq->front->proc->priority) ||
+           (b->cn->proc->burstTime <= b->qtime)
+          )
         {
-            printf("***** process 3 is running for %d seconds *****\n", b->cn->proc->burstTime);
+            printf("***** process 3 is running for %d seconds [%d, %d] *****\n", b->cn->proc->burstTime, b->interval, b->interval+b->cn->proc->burstTime);
             printQueue(b->pq);
             sleep(b->cn->proc->burstTime);
+            b->interval = b->interval+b->cn->proc->burstTime;
             updateBurstTime(b->cn->proc, b->cn->proc->burstTime);
             sem_post(&b->sd);
         }
         else
         {
-            printf("***** process 3 is running for %d seconds *****\n", b->qtime);
+            printf("***** process 3 is running for %d seconds [%d, %d] *****\n", b->qtime, b->interval, b->interval+b->qtime);
             printQueue(b->pq);
             sleep(b->qtime);
+            b->interval = b->interval+b->qtime;
             updateBurstTime(b->cn->proc, b->qtime);
             enQueue(b->pq, b->cn);
-            sem_post(&b->sd);            
+            sem_post(&b->sd);
         }
+
     }
-    
 }
 
 void process4(BOARD *b)
@@ -362,25 +381,30 @@ void process4(BOARD *b)
         if(b->sched == false)
             pthread_exit(NULL);
         
-        if((b->pq->front == NULL) || (b->cn->proc->priority < b->pq->front->proc->priority) || (b->cn->proc->burstTime <= b->qtime))
+        if((b->pq->front ==NULL) ||
+           (b->cn->proc->priority < b->pq->front->proc->priority) ||
+           (b->cn->proc->burstTime <= b->qtime)
+          )
         {
-            printf("***** process 4 is running for %d seconds *****\n", b->cn->proc->burstTime);
+            printf("***** process 4 is running for %d seconds [%d, %d] *****\n", b->cn->proc->burstTime, b->interval, b->interval+b->cn->proc->burstTime);
             printQueue(b->pq);
             sleep(b->cn->proc->burstTime);
+            b->interval = b->interval+b->cn->proc->burstTime;
             updateBurstTime(b->cn->proc, b->cn->proc->burstTime);
             sem_post(&b->sd);
         }
         else
         {
-            printf("***** process 4 is running for %d seconds *****\n", b->qtime);
+            printf("***** process 4 is running for %d seconds [%d, %d] *****\n", b->qtime, b->interval, b->interval+b->qtime);
             printQueue(b->pq);
             sleep(b->qtime);
+            b->interval = b->interval+b->qtime;
             updateBurstTime(b->cn->proc, b->qtime);
             enQueue(b->pq, b->cn);
-            sem_post(&b->sd);            
+            sem_post(&b->sd);
         }
+
     }
-    
 }
 
 void process5(BOARD *b)
@@ -392,23 +416,28 @@ void process5(BOARD *b)
         if(b->sched == false)
             pthread_exit(NULL);
         
-        if((b->pq->front == NULL) || (b->cn->proc->priority < b->pq->front->proc->priority) || (b->cn->proc->burstTime <= b->qtime))
+        if((b->pq->front ==NULL) ||
+           (b->cn->proc->priority < b->pq->front->proc->priority) ||
+           (b->cn->proc->burstTime <= b->qtime)
+          )
         {
-            printf("***** process 5 is running for %d seconds *****\n", b->cn->proc->burstTime);
+            printf("***** process 5 is running for %d seconds [%d, %d] *****\n", b->cn->proc->burstTime, b->interval, b->interval+b->cn->proc->burstTime);
             printQueue(b->pq);
             sleep(b->cn->proc->burstTime);
+            b->interval = b->interval+b->cn->proc->burstTime;
             updateBurstTime(b->cn->proc, b->cn->proc->burstTime);
             sem_post(&b->sd);
         }
         else
         {
-            printf("***** process 5 is running for %d seconds *****\n", b->qtime);
+            printf("***** process 5 is running for %d seconds [%d, %d] *****\n", b->qtime, b->interval, b->interval+b->qtime);
             printQueue(b->pq);
             sleep(b->qtime);
+            b->interval = b->interval+b->qtime;
             updateBurstTime(b->cn->proc, b->qtime);
             enQueue(b->pq, b->cn);
-            sem_post(&b->sd);            
+            sem_post(&b->sd);
         }
+
     }
-    
 }
