@@ -1,71 +1,73 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "unistd.h"
-#include "stdbool.h"
-#include "pthread.h"
 #include "semaphore.h"
+#include "pthread.h"
+#include "stdbool.h"
 
-#define NUMOP 5
+#define NUMOT 5
 #define NUMOR 3
 
 struct board
 {
-    sem_t th[NUMOP], bk[NUMOP];
-    pthread_mutex_t m;
+    sem_t tsem[NUMOT];
+    sem_t bsem[NUMOT];
     int available[NUMOR];
-    int max[NUMOP][NUMOR];
-    int allocation[NUMOP][NUMOR];
-    int need[NUMOP][NUMOR];
+    int max[NUMOT][NUMOR];
+    int allocation[NUMOT][NUMOR];
+    int need[NUMOT][NUMOR];
     int total[NUMOR];
-    bool finish[NUMOP];
-    int proc[NUMOR];
+    bool finish[NUMOT];
+    int order[NUMOT];
 };
 
 typedef struct board BOARD;
 BOARD b;
 
 void initBoard(void);
-void threads(int *);
-void banker(void *);
+void refreshBoard(void);
+void threadsProc(int *);
+void bankerProc(void *);
 void printState(void);
 bool isSafe(void);
-bool needLtAvailable(int id);
+bool needLtAvailable(int);
 void printArray(void);
 
 int main(int argc, char const *argv[])
 {
-    pthread_t t[NUMOP], bt;
-    int id[NUMOP];
-    
+    pthread_t threads[NUMOT];
+    pthread_t banker;
+
+    int id[NUMOT];
+
     initBoard();
 
-    for (size_t i = 0; i < NUMOP; i++)
+    for (size_t i = 0; i < NUMOT; i++)
     {
         id[i] = i;
-        pthread_create(&t[i], NULL, (void *) threads, &id[i]);
+        pthread_create(&threads[i], NULL, (void *) threadsProc, &id[i]);
     }
 
-    pthread_create(&bt, NULL, (void *) banker, NULL);  
+    pthread_create(&banker, NULL, (void *) bankerProc, NULL);
 
-    for (size_t i = 0; i < NUMOP; i++)
-        pthread_join(t[i], NULL);
+    for (size_t i = 0; i < NUMOT; i++)
+        pthread_join(threads[i], NULL);
 
-    pthread_join(bt, NULL);
+    pthread_join(banker, NULL);   
 
     return 0;
 }
 
 void initBoard(void)
 {
-    for (size_t i = 0; i < NUMOP; i++)
+    for (size_t i = 0; i < NUMOT; i++)
     {
-        sem_init(&b.th[i],1,1);
-        sem_init(&b.bk[i],1,0);
+        sem_init(&b.tsem[i],1,1);
+        sem_init(&b.bsem[i],0,0);
         b.total[i] = 0;
         b.finish[i] = false;
     }
-    pthread_mutex_init(&b.m, NULL);
-
+    
     b.available[0] = 10;
     b.available[1] = 5;
     b.available[2] = 7;
@@ -93,13 +95,12 @@ void initBoard(void)
 
 void refreshBoard(void)
 {
-
-    for (size_t i = 0; i < NUMOP; i++)
+    for (size_t i = 0; i < NUMOT; i++)
     {
         b.total[i] = 0;
+        b.finish[i] = false;
     }
-    pthread_mutex_init(&b.m, NULL);
-
+    
     b.available[0] = 10;
     b.available[1] = 5;
     b.available[2] = 7;
@@ -125,107 +126,156 @@ void refreshBoard(void)
     b.max[4][2] = 3;
 }
 
-
-void threads(int *identity)
+void threadsProc(int *identity)
 {
     int id = *identity;
 
     while (true)
     {
-        sem_wait(&b.th[id]);
+        sem_wait(&b.tsem[id]);
         srand(time(NULL) * id);
         printf("thread %d is requesting...\n", id);
-        for (size_t i = 0; i < NUMOR; i++)
+        
+        for (size_t i = 0; i < NUMOT; i++)
         {
             if(b.max[id][i] == 0)
                 b.allocation[id][i] = 0;
             else
                 b.allocation[id][i] = rand() % (b.max[id][i]);
         }
+        
         sleep(1);
-        sem_post(&b.bk[id]);
+        sem_post(&b.bsem[id]);
     }
 }
 
-void banker(void *unused)
+void bankerProc(void * unused)
 {
     while (true)
     {
-        for (size_t i = 0; i < NUMOP; i++)
-            sem_wait(&b.bk[i]);
+        for (size_t i = 0; i < NUMOT; i++)
+            sem_wait(&b.bsem[i]);
+        
         printf("banker is checking...\n");
 
-        printf(" Allocation       Max          Needed        Available\n");
         for (size_t i = 0; i < NUMOR; i++)
         {
-            for (size_t j = 0; j < NUMOP; j++)
-                b.total[i] = b.total[i] + b.allocation[j][i];
-        }        
-
-        for (size_t i = 0; i < NUMOR; i++)
-        {
-            b.available[i] = b.available[i] - b.total[i];
+            for (size_t j = 0; j < NUMOT; j++)
+                b.total[i] = b.total[i] + b.allocation[j][i];            
         }
-
-        for (size_t i = 0; i < NUMOP; i++)
+        
+        for (size_t i = 0; i < NUMOR; i++)
+            b.available[i] = b.available[i] - b.total[i];
+        
+        for (size_t i = 0; i < NUMOT; i++)
         {
             for (size_t j = 0; j < NUMOR; j++)
-                b.need[i][j] = b.max[i][j] - b.allocation[i][j];            
+                b.need[i][j] = b.max[i][j] - b.allocation[i][j];
         }
-
+        
         printState();
         bool v = isSafe();
         if(v)
         {
-            printf("the state is safe with the pid order: ");
+            printf("the state is safe with tid order: ");
             printArray();
         }
         else
             printf("the state is unsafe\n");
 
         refreshBoard();
-
         sleep(1);
-        for (size_t i = 0; i < NUMOP; i++)
-            sem_post(&b.th[i]);     
-    }    
+
+        for (size_t i = 0; i < NUMOT; i++)
+            sem_post(&b.tsem[i]);
+    }
+    
 }
 
 void printState(void)
 {
     bool v = true;
-    for (size_t i = 0; i < NUMOP; i++)
+    printf(" Allocation        Max          Needed        Available\n");
+
+    for (size_t i = 0; i < NUMOT; i++)
     {
         for (size_t j = 0; j < NUMOR; j++)
         {
             if(j < NUMOR - 1)
-                printf("%d   ", b.allocation[i][j]);
+                printf("%-2d   ", b.allocation[i][j]);
             else
-                printf("%d   |  ", b.allocation[i][j]);
-        }
-        
-        for (size_t j = 0; j < NUMOR; j++)
-        {
-            if(j < NUMOR - 1)
-                printf("%d   ", b.max[i][j]);
-            else
-                printf("%d   |  ", b.max[i][j]);
+                printf("%-2d|  ", b.allocation[i][j]);
         }
 
         for (size_t j = 0; j < NUMOR; j++)
         {
             if(j < NUMOR - 1)
-                printf("%-2d  ", b.need[i][j]);
+                printf("%-2d   ", b.max[i][j]);
             else
-                printf("%-2d  |  ", b.need[i][j]);
+                printf("%-2d|  ", b.max[i][j]);
         }
-        
+
+        for (size_t j = 0; j < NUMOR; j++)
+        {
+            if(j < NUMOR - 1)
+                printf("%-2d   ", b.need[i][j]);
+            else
+                printf("%-2d|  ", b.need[i][j]);
+        }
+
         for (size_t k = 0; k < NUMOR && v; k++)
-            printf("%d   ", b.available[k]);
-    
+            printf("%-2d   ", b.available[k]);
+
         v = false;
-        printf("\n");        
+        printf("\n");
     }
+}
+
+bool isSafe(void)
+{
+    bool v = true;
+    int m = 0;
+
+    for (size_t j = 0; j < NUMOT; j++)
+    {
+        v = true;
+        for (size_t i = 0; i < NUMOT; i++)
+        {
+            if(b.finish[i] == false && needLtAvailable(i))
+            {
+                for (size_t k = 0; k < NUMOR; k++)
+                {
+                    b.available[k] = b.available[k] + b.allocation[i][k];
+                    b.finish[i] = true;
+                }
+                b.order[m] = i;
+                m++;
+            }
+        }
+
+        for (size_t i = 0; i < NUMOT; i++)
+        {
+            if(b.finish[i] == true)
+                v = v && true;
+            else
+                v = false;
+        }
+    }
+    return v;
+}
+
+void printArray(void)
+{
+    printf("<");
+    for (size_t i = 0; i < NUMOT; i++)
+    {
+        if(i < NUMOT - 1)
+            printf("t%d,", b.order[i]);
+        else
+            printf("t%d", b.order[i]);
+    }
+    printf(">\n");
+    
 }
 
 bool needLtAvailable(int id)
@@ -241,51 +291,3 @@ bool needLtAvailable(int id)
     return v;
 }
 
-bool isSafe(void)
-{
-    bool v1 = true;
-    int m = 0;
-    for (size_t j = 0; j < NUMOP; j++)   
-    {
-        v1 = true;
-
-        for (size_t i = 0; i < NUMOP; i++)
-        {           
-            if(b.finish[i] == false && needLtAvailable(i))
-            {
-                for (size_t k = 0; k < NUMOR; k++)
-                {
-                    b.available[k] = b.available[k] + b.allocation[i][k];
-                    b.finish[i] = true;
-                }
-                b.proc[m] = i;
-                m++;
-            }
-        }
-
-        for (size_t i = 0; i < NUMOP; i++)
-        {
-            if(b.finish[i] == true)
-                v1 = v1 && true;
-            else
-                v1 = false;
-        }
-    }   
-    return v1;
-}
-
-void printArray(void)
-{
-    printf("<");
-    for (size_t i = 0; i < NUMOP; i++)
-    {
-        if(i < NUMOP-1)
-        {
-            printf("t%d,", b.proc[i]);
-        }
-        else
-            printf("t%d", b.proc[i]);
-    }
-    printf(">\n");
-    
-}
